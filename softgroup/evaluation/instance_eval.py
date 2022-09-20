@@ -316,7 +316,7 @@ class ScanNetEval(object):
         print()
         print('#' * lineLen)
         line = ''
-        line += '{:<15}'.format('what') + sep + col1
+        line += '{:<25}'.format('what') + sep + col1
         line += '{:>8}'.format('AP') + sep
         line += '{:>8}'.format('AP_50%') + sep
         line += '{:>8}'.format('AP_25%') + sep
@@ -334,7 +334,7 @@ class ScanNetEval(object):
             rc_avg = avgs['classes'][label_name]['rc']
             rc_50o = avgs['classes'][label_name]['rc50%']
             rc_25o = avgs['classes'][label_name]['rc25%']
-            line = '{:<15}'.format(label_name) + sep + col1
+            line = '{:<25}'.format(label_name) + sep + col1
             line += sep + '{:>8.3f}'.format(ap_avg) + sep
             line += sep + '{:>8.3f}'.format(ap_50o) + sep
             line += sep + '{:>8.3f}'.format(ap_25o) + sep
@@ -351,7 +351,7 @@ class ScanNetEval(object):
         all_rc_25o = avgs['all_rc_25%']
 
         print('-' * lineLen)
-        line = '{:<15}'.format('average') + sep + col1
+        line = '{:<25}'.format('average') + sep + col1
         line += '{:>8.3f}'.format(all_ap_avg) + sep
         line += '{:>8.3f}'.format(all_ap_50o) + sep
         line += '{:>8.3f}'.format(all_ap_25o) + sep

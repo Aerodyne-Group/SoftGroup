@@ -190,7 +190,7 @@ class PanopticEval:
         print()
         print('#' * lineLen)
         line = ''
-        line += '{:<14}'.format('what') + sep + col1
+        line += '{:<22}'.format('what') + sep + col1
         line += '{:>6}'.format('PQ') + sep
         line += '{:>6}'.format('PQ*') + sep
         line += '{:>6}'.format('RQ') + sep
@@ -206,7 +206,7 @@ class PanopticEval:
         print('#' * lineLen)
 
         for i in range(self.n_classes):
-            line = '{:<14}'.format(self.classes[i]) + sep + col1
+            line = '{:<22}'.format(self.classes[i]) + sep + col1
             line += sep + '{:>6.1f}'.format(pq_all[i]) + sep
             line += sep + '{:>6.1f}'.format(pq_dagger_all[i]) + sep
             line += sep + '{:>6.1f}'.format(rq_all[i]) + sep
@@ -223,7 +223,7 @@ class PanopticEval:
             print(line)
 
         print('-' * lineLen)
-        line = '{:<14}'.format('average') + sep + col1
+        line = '{:<22}'.format('average') + sep + col1
         line += '{:>6.1f}'.format(PQ) + sep
         line += '{:>6.1f}'.format(PQ_dagger) + sep
         line += '{:>6.1f}'.format(RQ) + sep
