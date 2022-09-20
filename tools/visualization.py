@@ -269,7 +269,7 @@ if __name__ == '__main__':
         '--task',
         help='input/semantic_gt/semantic_pred/offset_semantic_pred/instance_gt/instance_pred',
         default='instance_pred')
-    parser.add_argument('--out', help='output point cloud file in FILE.ply format')
+    parser.add_argument('--out', help='output point cloud file in FILE.ply format', default = '')
     opt = parser.parse_args()
 
     xyz, rgb = get_coords_color(opt)
