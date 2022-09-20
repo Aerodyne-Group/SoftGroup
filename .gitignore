@@ -84,3 +84,4 @@ dataset/stpls3d/Synthetic_v3_InstanceSegmentation
 tmp/*
 work_dirs/*
 results/*
+dataset/telco-ai/*
