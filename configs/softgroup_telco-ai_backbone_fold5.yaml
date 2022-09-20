@@ -30,8 +30,8 @@ model:
 data:
   train:
     dowsample_ratio: 0.25
-    type: 'telco-ai'
-    data_root: 'dataset/telco-ai'
+    type: 'telco'
+    data_root: 'dataset/telco'
     prefix: ['Area_1']
     suffix: '.pth'
     repeat: 20
@@ -43,8 +43,8 @@ data:
       min_npoint: 5000
   test:
     dowsample_ratio: 1.0
-    type: 'telco-ai'
-    data_root: 'dataset/telco-ai'
+    type: 'telco'
+    data_root: 'dataset/telco'
     prefix: ['Area_0']
     suffix: '.pth'
     training: False
