@@ -29,7 +29,7 @@ class TelcoAI(CustomDataset):
         # subsample data
         if self.training:
             N = xyz.shape[0]
-            inds = np.random.choice(N, int(N * self.voxel_cfg.dowsample_ratio), replace=False)
+            inds = np.random.choice(N, int(N * self.downsample_ratio), replace=False)
             xyz = xyz[inds]
             rgb = rgb[inds]
             semantic_label = semantic_label[inds]

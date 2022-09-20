@@ -30,10 +30,10 @@ model:
 
 data:
   train:
-    dowsample_ratio: 0.25
+    downsample_ratio: 0.25
     type: 'telco'
-    data_root: 'dataset/telco'
-    prefix: ['Area_1']
+    data_root: 'dataset/telco/data_qc_ok_poc_downsampled_2cm_aligned_patch_softgrp'
+    prefix: ['Area_0']
     suffix: '.pth'
     repeat: 20
     training: True
@@ -43,9 +43,9 @@ data:
       max_npoint: 250000
       min_npoint: 5000
   test:
-    dowsample_ratio: 1.0
+    downsample_ratio: 1.0
     type: 'telco'
-    data_root: 'dataset/telco'
+    data_root: 'dataset/telco/data_qc_ok_poc_downsampled_2cm_aligned_patch_softgrp'
     prefix: ['Area_0']
     suffix: '.pth'
     training: False

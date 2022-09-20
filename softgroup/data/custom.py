@@ -25,11 +25,11 @@ class CustomDataset(Dataset):
                  with_label=True,
                  repeat=1,
                  logger=None,
-                 dowsample_ratio = 1.0):
+                 downsample_ratio = 1.0):
         self.data_root = data_root
         self.prefix = prefix
         self.suffix = suffix
-        self.downsample_ratio = dowsample_ratio
+        self.downsample_ratio = downsample_ratio
         self.voxel_cfg = voxel_cfg
         self.training = training
         self.with_label = with_label
