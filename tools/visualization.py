@@ -164,6 +164,8 @@ def get_coords_color(opt):
         label_pred = np.load(semantic_file).astype(int)  # 0~19
         label_pred_rgb = np.array(itemgetter(*SEMANTIC_NAMES[label_pred])(CLASS_COLOR))
         rgb = label_pred_rgb
+        print('Total Labels Predicted: ', end = ': ')
+        print(np.unique(label_pred, return_counts=True))
 
     elif (opt.task == 'offset_semantic_pred'):
         semantic_file = os.path.join(opt.prediction_path, 'semantic_pred', opt.room_name + '.npy')
@@ -194,9 +196,12 @@ def get_coords_color(opt):
 
     # same color order according to instance pointnum
     elif (opt.task == 'instance_pred'):
+        semantic_file = os.path.join(opt.prediction_path, 'semantic_pred', opt.room_name + '.npy')
         instance_file = os.path.join(opt.prediction_path, 'pred_instance', opt.room_name + '.txt')
+        assert os.path.isfile(semantic_file), 'No semantic result - {}.'.format(semantic_file)
         assert os.path.isfile(instance_file), 'No instance result - {}.'.format(instance_file)
         f = open(instance_file, 'r')
+        temp = np.load(semantic_file)
         masks = f.readlines()
         masks = [mask.rstrip().split() for mask in masks]
         inst_label_pred_rgb = np.zeros(rgb.shape)  # np.ones(rgb.shape) * 255 #
@@ -215,19 +220,26 @@ def get_coords_color(opt):
             if (float(masks[i][2]) < 0.09):
                 continue
             mask = np.array(open(mask_path).read().splitlines(), dtype=int)
-            print('{} {}: pointnum: {}'.format(i, masks[i], mask.sum()))
+            print('{} {}: pointnum: {}'.format(i, masks[i], mask.sum()), end='\t')
+            semantic_classes = np.unique(temp[mask == 1], return_counts=True)
+            s_class = semantic_classes[0]
+            s_points = semantic_classes[1]
+            s_idx = np.argsort(s_points)[::-1]
+            s_class = s_class[s_idx]
+            s_points = s_points[s_idx]
+            print(s_class, s_points, end='\n')
             ins_pointnum[i] = mask.sum()
-            inst_label[mask == 1] = i
+            inst_label[mask == 1] = i_
         sort_idx = np.argsort(ins_pointnum)[::-1]
         for _sort_id in range(ins_num):
             inst_label_pred_rgb[inst_label == sort_idx[_sort_id]] = COLOR_DETECTRON2[
                 _sort_id % len(COLOR_DETECTRON2)]
         rgb = inst_label_pred_rgb
+        rgb = np.concatenate([rgb, temp.reshape(-1, 1), inst_label.reshape(-1, 1)], axis=1)
 
     sem_valid = (label != -100)
     xyz = xyz[sem_valid]
     rgb = rgb[sem_valid]
-
     return xyz, rgb
 
 
@@ -272,22 +284,109 @@ if __name__ == '__main__':
     parser.add_argument('--out', help='output point cloud file in FILE.ply format', default = '')
     opt = parser.parse_args()
 
-    xyz, rgb = get_coords_color(opt)
-    points = xyz[:, :3]
-    colors = rgb / 255
+    import open3d as o3d
+    if opt.task == 'semantic_all':
+        opt.task = 'input'
+        xyz0, rgb0 = get_coords_color(opt)
+        xyz0 = xyz0[:, :3]
+        rgb0 = rgb0 / 255
 
-    if opt.out != '':
-        assert '.ply' in opt.out, 'output cloud file should be in FILE.ply format'
-        write_ply(points, colors, None, opt.out)
+        opt.task = 'semantic_gt'
+        xyz1, rgb1 = get_coords_color(opt)
+        xyz1 = xyz1[:, :3]
+        rgb1 = rgb1 / 255
+
+        opt.task = 'semantic_pred'
+        xyz2, rgb2 = get_coords_color(opt)
+        xyz2 = xyz2[:, :3]
+        rgb2 = rgb2 / 255
+
+        o3d_pcd0 = o3d.geometry.PointCloud()
+        o3d_pcd0.colors = o3d.utility.Vector3dVector(rgb0)
+        o3d_pcd0.points = o3d.utility.Vector3dVector(xyz0)
+
+        o3d_pcd1 = o3d.geometry.PointCloud()
+        o3d_pcd1.colors = o3d.utility.Vector3dVector(rgb1)
+        o3d_pcd1.points = o3d.utility.Vector3dVector(xyz1)
+
+        o3d_pcd2 = o3d.geometry.PointCloud()
+        o3d_pcd2.colors = o3d.utility.Vector3dVector(rgb2)
+        o3d_pcd2.points = o3d.utility.Vector3dVector(xyz2)
+
+        o3d.visualization.draw([o3d_pcd0, o3d_pcd1, o3d_pcd2],
+                               title="semantic gt & predictions", point_size=3, bg_color=(1, 1, 1, 1), show_skybox=False)
+    elif opt.task == 'instance_all':
+        opt.task = 'input'
+        xyz0, rgb0 = get_coords_color(opt)
+        xyz0 = xyz0[:, :3]
+        rgb0 = rgb0 / 255
+
+        opt.task = 'instance_gt'
+        xyz1, rgb1 = get_coords_color(opt)
+        xyz1 = xyz1[:, :3]
+        rgb1 = rgb1 / 255
+
+        opt.task = 'instance_pred'
+        xyz2, rgb2 = get_coords_color(opt)
+        xyz2 = xyz2[:, :3]
+        rgb2 = rgb2[:, :3] / 255
+
+        o3d_pcd0 = o3d.geometry.PointCloud()
+        o3d_pcd0.colors = o3d.utility.Vector3dVector(rgb0)
+        o3d_pcd0.points = o3d.utility.Vector3dVector(xyz0)
+
+        o3d_pcd1 = o3d.geometry.PointCloud()
+        o3d_pcd1.colors = o3d.utility.Vector3dVector(rgb1)
+        o3d_pcd1.points = o3d.utility.Vector3dVector(xyz1)
+
+        o3d_pcd2 = o3d.geometry.PointCloud()
+        o3d_pcd2.colors = o3d.utility.Vector3dVector(rgb2)
+        o3d_pcd2.points = o3d.utility.Vector3dVector(xyz2)
+
+        o3d.visualization.draw([o3d_pcd0, o3d_pcd1, o3d_pcd2],
+                               title="semantic gt & predictions", point_size=3, bg_color=(1, 1, 1, 1), show_skybox=False)
+    elif opt.task == 'instance_pred_and_semantic_pred':
+        opt.task = 'input'
+        xyz0, rgb0 = get_coords_color(opt)
+        xyz0 = xyz0[:, :3]
+        rgb0 = rgb0 / 255
+
+        opt.task = 'instance_pred'
+        xyz2, rgb2 = get_coords_color(opt)
+        xyz2 = xyz2[:, :3]
+
+        pcds = []
+        o3d_pcd = o3d.geometry.PointCloud()
+        o3d_pcd.colors = o3d.utility.Vector3dVector(rgb0)
+        o3d_pcd.points = o3d.utility.Vector3dVector(xyz0)
+
+        labels = rgb2[:, 4]
+        all_labels = np.unique(labels)[1:]
+
+        for k in all_labels:
+            sel = labels == k
+            o3d_pcd2 = o3d.geometry.PointCloud()
+            o3d_pcd2.colors = o3d.utility.Vector3dVector(rgb2[sel, :3])
+            o3d_pcd2.points = o3d.utility.Vector3dVector(xyz2[sel])
+            pcds.append(o3d_pcd2)
+
+        o3d.visualization.draw([o3d_pcd] + pcds,
+                               title="instance predictions", point_size=3, bg_color=(1, 1, 1, 1), show_skybox=False)
     else:
-        import open3d as o3d
-        pc = o3d.geometry.PointCloud()
-        pc.points = o3d.utility.Vector3dVector(points)
-        pc.colors = o3d.utility.Vector3dVector(colors)
+        xyz, rgb = get_coords_color(opt)
+        points = xyz[:, :3]
+        colors = rgb[:, :3] / 255
+        if opt.out != '':
+            assert '.ply' in opt.out, 'output cloud file should be in FILE.ply format'
+            write_ply(points, colors, None, opt.out)
+        else:
+            pc = o3d.geometry.PointCloud()
+            pc.points = o3d.utility.Vector3dVector(points)
+            pc.colors = o3d.utility.Vector3dVector(colors)
 
-        vis = o3d.visualization.Visualizer()
-        vis.create_window()
-        vis.add_geometry(pc)
-        vis.get_render_option().point_size = 1.5
-        vis.run()
-        vis.destroy_window()
+            vis = o3d.visualization.Visualizer()
+            vis.create_window()
+            vis.add_geometry(pc)
+            vis.get_render_option().point_size = 1.5
+            vis.run()
+            vis.destroy_window()
