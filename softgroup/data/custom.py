@@ -87,7 +87,23 @@ class CustomDataset(Dataset):
             pt_mean[inst_idx_i] = xyz_i.mean(0)
             instance_pointnum.append(inst_idx_i[0].size)
             cls_idx = inst_idx_i[0][0]
-            instance_cls.append(semantic_label[cls_idx])
+            instance_cls.append(semantic_label[cls_idx]-1) # subtract 1 to start labels from 0 to K-1
+
+            # TO: Visualizes instances based on class label.
+            # import open3d as o3d
+            #
+            # o3d_pcd = o3d.geometry.PointCloud()
+            # o3d_pcd.colors = o3d.utility.Vector3dVector(np.ones(xyz.shape))
+            # o3d_pcd.points = o3d.utility.Vector3dVector(np.matmul(xyz, np.eye(3)));
+            #
+            # o3d_pcd1 = o3d.geometry.PointCloud()
+            # rgb1 = np.zeros(xyz_i.shape)
+            # rgb1[:, 1] = 1
+            # o3d_pcd1.colors = o3d.utility.Vector3dVector(rgb1)
+            # o3d_pcd1.points = o3d.utility.Vector3dVector(np.matmul(xyz_i, np.eye(3)));
+            # o3d.visualization.draw([o3d_pcd, o3d_pcd1], title="softgroup_pcd.name", point_size=3, bg_color=(0, 0, 0, 0),
+            #                        show_skybox=False)
+
         pt_offset_label = pt_mean - xyz
         return instance_num, instance_pointnum, instance_cls, pt_offset_label
 
@@ -140,9 +156,9 @@ class CustomDataset(Dataset):
     def transform_train(self, xyz, rgb, semantic_label, instance_label, aug_prob=1.0):
         xyz_middle = self.dataAugment(xyz, True, True, True, aug_prob)
         xyz = xyz_middle * self.voxel_cfg.scale
-        if np.random.rand() < aug_prob:
-            xyz = self.elastic(xyz, 6, 40.)
-            xyz = self.elastic(xyz, 20, 160.)
+        # if np.random.rand() < aug_prob:
+        #     xyz = self.elastic(xyz, 6, 40.)
+        #     xyz = self.elastic(xyz, 20, 160.)
         # xyz_middle = xyz / self.voxel_cfg.scale
         xyz = xyz - xyz.min(0)
         max_tries = 5
