@@ -210,7 +210,7 @@ def get_coords_color(opt):
         temp = np.load(semantic_file)
         masks = f.readlines()
         masks = [mask.rstrip().split() for mask in masks]
-        inst_label_pred_rgb = np.zeros(rgb.shape)  # np.ones(rgb.shape) * 255 #
+        inst_label_pred_rgb =  np.ones(rgb.shape) * 255 #
 
         ins_num = len(masks)
         ins_pointnum = np.zeros(ins_num)
@@ -243,6 +243,7 @@ def get_coords_color(opt):
         rgb = inst_label_pred_rgb
         rgb = np.concatenate([rgb, temp.reshape(-1, 1), inst_label.reshape(-1, 1)], axis=1)
 
+    label = np.load(label_file)
     sem_valid = (label != -100)
     xyz = xyz[sem_valid]
     rgb = rgb[sem_valid]
@@ -320,7 +321,7 @@ if __name__ == '__main__':
         o3d_pcd2.points = o3d.utility.Vector3dVector(xyz2)
 
         o3d.visualization.draw([o3d_pcd0, o3d_pcd1, o3d_pcd2],
-                               title="semantic gt & predictions", point_size=3, bg_color=(1, 1, 1, 1), show_skybox=False)
+                               title="semantic gt & predictions", point_size=3, bg_color=(0, 0, 0, 0), show_skybox=False)
     elif opt.task == 'instance_all':
         opt.task = 'input'
         xyz0, rgb0 = get_coords_color(opt)
@@ -350,7 +351,7 @@ if __name__ == '__main__':
         o3d_pcd2.points = o3d.utility.Vector3dVector(xyz2)
 
         o3d.visualization.draw([o3d_pcd0, o3d_pcd1, o3d_pcd2],
-                               title="semantic gt & predictions", point_size=3, bg_color=(1, 1, 1, 1), show_skybox=False)
+                               title="semantic gt & predictions", point_size=3, bg_color=(0, 0, 0, 0), show_skybox=False)
     elif opt.task == 'instance_pred_and_semantic_pred':
         opt.task = 'input'
         xyz0, rgb0 = get_coords_color(opt)
@@ -377,7 +378,7 @@ if __name__ == '__main__':
             pcds.append(o3d_pcd2)
 
         o3d.visualization.draw([o3d_pcd] + pcds,
-                               title="instance predictions", point_size=3, bg_color=(1, 1, 1, 1), show_skybox=False)
+                               title="instance predictions", point_size=3, bg_color=(0, 0, 0, 0), show_skybox=False)
     else:
         xyz, rgb = get_coords_color(opt)
         points = xyz[:, :3]
