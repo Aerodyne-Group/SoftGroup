@@ -146,12 +146,10 @@ def get_coords_color(opt):
     inst_label_file = osp.join(opt.prediction_path, 'gt_instance', opt.room_name + '.txt')
     xyz = np.load(coord_file)
     rgb = np.load(color_file)
-    label = np.load(label_file)
-    inst_label = np.array(open(inst_label_file).read().splitlines(), dtype=int)
-    inst_label = inst_label % 1000 - 1
     rgb = (rgb + 1) * 127.5
 
     if (opt.task == 'semantic_gt'):
+        label = np.load(label_file)
         label = label.astype(int)
         label_rgb = np.zeros(rgb.shape)
         label_rgb[label >= 0] = np.array(
@@ -159,6 +157,7 @@ def get_coords_color(opt):
         rgb = label_rgb
 
     elif (opt.task == 'semantic_pred'):
+        label = np.load(label_file)
         semantic_file = os.path.join(opt.prediction_path, 'semantic_pred', opt.room_name + '.npy')
         assert os.path.isfile(semantic_file), 'No semantic result - {}.'.format(semantic_file)
         label_pred = np.load(semantic_file).astype(int)  # 0~19
@@ -168,6 +167,7 @@ def get_coords_color(opt):
         print(np.unique(label_pred, return_counts=True))
 
     elif (opt.task == 'offset_semantic_pred'):
+        label = np.load(label_file)
         semantic_file = os.path.join(opt.prediction_path, 'semantic_pred', opt.room_name + '.npy')
         assert os.path.isfile(semantic_file), 'No semantic result - {}.'.format(semantic_file)
         label_pred = np.load(semantic_file).astype(int)  # 0~19
@@ -181,6 +181,9 @@ def get_coords_color(opt):
 
     # same color order according to instance pointnum
     elif (opt.task == 'instance_gt'):
+        label = np.load(label_file)
+        inst_label = np.array(open(inst_label_file).read().splitlines(), dtype=int)
+        inst_label = inst_label % 1000 - 1
         inst_label = inst_label.astype(int)
         print('Instance number: {}'.format(inst_label.max() + 1))
         inst_label_rgb = np.zeros(rgb.shape)
@@ -196,6 +199,9 @@ def get_coords_color(opt):
 
     # same color order according to instance pointnum
     elif (opt.task == 'instance_pred'):
+        label = np.load(label_file)
+        inst_label = np.array(open(inst_label_file).read().splitlines(), dtype=int)
+        inst_label = inst_label % 1000 - 1
         semantic_file = os.path.join(opt.prediction_path, 'semantic_pred', opt.room_name + '.npy')
         instance_file = os.path.join(opt.prediction_path, 'pred_instance', opt.room_name + '.txt')
         assert os.path.isfile(semantic_file), 'No semantic result - {}.'.format(semantic_file)
