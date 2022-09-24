@@ -92,7 +92,7 @@ SEMANTIC_NAMES = np.array([
     'bathtub', 'otherfurniture'
 ])
 CLASS_COLOR = {
-    'unannotated': [0, 0, 0],
+    'unannotated': [255, 255, 255],
     'floor': [143, 223, 142],
     'wall': [171, 198, 230],
     'cabinet': [0, 120, 177],
@@ -186,7 +186,7 @@ def get_coords_color(opt):
         inst_label = inst_label % 1000 - 1
         inst_label = inst_label.astype(int)
         print('Instance number: {}'.format(inst_label.max() + 1))
-        inst_label_rgb = np.zeros(rgb.shape)
+        inst_label_rgb = np.ones(rgb.shape) * 255
         ins_num = inst_label.max() + 1
         ins_pointnum = np.zeros(ins_num)
         for _ins_id in range(ins_num):
@@ -395,5 +395,6 @@ if __name__ == '__main__':
             vis.create_window()
             vis.add_geometry(pc)
             vis.get_render_option().point_size = 1.5
+            vis.get_render_option().background_color = np.asarray([0, 0, 0])
             vis.run()
             vis.destroy_window()
