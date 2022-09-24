@@ -121,6 +121,7 @@ def save_panoptic(root, name, scan_ids, arrs, learning_map_inv, num_classes):
 
 def main():
     args = get_args()
+    filename = args.out + 'instance_table/results.csv'
     cfg_txt = open(args.config, 'r').read()
     cfg = Munch.fromDict(yaml.safe_load(cfg_txt))
     if args.dist:
@@ -171,7 +172,7 @@ def main():
             logger.info('Evaluate instance segmentation')
             eval_min_npoint = getattr(cfg, 'eval_min_npoint', None)
             scannet_eval = ScanNetEval(dataset.CLASSES, eval_min_npoint)
-            scannet_eval.evaluate(pred_insts, gt_insts)
+            scannet_eval.evaluate(pred_insts, gt_insts, filename=filename)
         if 'panoptic' in eval_tasks:
             logger.info('Evaluate panoptic segmentation')
             eval_min_npoint = getattr(cfg, 'eval_min_npoint', None)
@@ -180,7 +181,9 @@ def main():
         if 'semantic' in eval_tasks:
             logger.info('Evaluate semantic segmentation and offset MAE')
             ignore_label = cfg.model.ignore_label
-            evaluate_semantic_miou(sem_preds, sem_labels, ignore_label, logger)
+            evaluate_semantic_miou(sem_preds, sem_labels, ignore_label, logger,
+                                   classes=['background'] + list(dataset.CLASSES),
+                                   filename=filename)
             evaluate_semantic_acc(sem_preds, sem_labels, ignore_label, logger)
             evaluate_offset_mae(offset_preds, offset_labels, inst_labels, ignore_label, logger)
 

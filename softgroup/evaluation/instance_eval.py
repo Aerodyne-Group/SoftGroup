@@ -308,6 +308,31 @@ class ScanNetEval(object):
 
         return gt2pred, pred2gt
 
+
+    def print_table(self, avgs, filename):
+        for k in avgs['classes']:
+            avgs[k] = avgs['classes'][k]
+        avgs.pop('classes')
+        temp = {}
+        keys = list(avgs.keys())
+        for k in keys:
+            if k.split('_')[0] == 'all':
+                temp[k.replace('all_', '').replace('_', '')] = avgs[k]
+                avgs.pop(k)
+        avgs['background'] = dict(zip(temp.keys(), [None] * len(temp.keys())))
+        avgs['all'] = temp
+
+        import pandas as pd
+        import os
+        te = pd.DataFrame(avgs).T
+        te.replace(np.nan, '0.0')
+        if os.path.exists(filename):
+            os.remove(filename)
+            te.to_csv(filename, float_format='%.4f')
+        else:
+            te.to_csv(filename, float_format='%.4f')
+
+
     def print_results(self, avgs):
         sep = ''
         col1 = ':'
@@ -372,7 +397,7 @@ class ScanNetEval(object):
                 ap25 = avgs['classes'][class_name]['ap25%']
                 f.write(_SPLITTER.join([str(x) for x in [class_name, ap, ap50, ap25]]) + '\n')
 
-    def evaluate(self, pred_list, gt_list):
+    def evaluate(self, pred_list, gt_list, filename = None):
         """
         Args:
             pred_list:
@@ -400,4 +425,5 @@ class ScanNetEval(object):
 
         # print
         self.print_results(avgs)
+        if filename: self.print_table(avgs, filename)
         return avgs
