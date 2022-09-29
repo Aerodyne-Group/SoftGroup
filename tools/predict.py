@@ -1,31 +1,25 @@
+import argparse
+import yaml
 from pathlib import Path
-from typing import Dict, List
-from tower_equipment_segmentation.dataset_converter.dataset_converter import DatasetConverter
-from tower_equipment_segmentation.dvo.known_class_labels import KnownClassLabels
-from tower_equipment_segmentation.util.logging_util import setup_logger
+from typing import Dict, List, Any, Tuple
 
-from tower_equipment_segmentation.util.dataset_util import \
-    get_site_ref_ids_in_dataset_dir, \
-    get_pcd_csv_file_path_for_site_ref_id, \
-    get_softgroup_pcd_pth_file_path_for_site_ref_id_and_area_idx
-
-from tower_equipment_segmentation.util.dir_util import create_dir
-from tower_equipment_segmentation.dvo.point_cloud_asset_segmentation import PointCloudAssetSegmentation
-
-import argparse, os, torch, yaml
-import os.path as osp
-import multiprocessing as mp
 import numpy as np
+import torch
+from munch import Munch
 
 from torch.nn.parallel import DistributedDataParallel
-from munch import Munch
-from softgroup.data import build_dataloader, build_dataset
-from softgroup.evaluation import (PanopticEval, ScanNetEval, evaluate_offset_mae,
-                                  evaluate_semantic_acc, evaluate_semantic_miou)
-from softgroup.model import SoftGroup
-from softgroup.util import (collect_results_cpu, get_dist_info, get_root_logger, init_dist,
-                            is_main_process, load_checkpoint, rle_decode)
+from tower_equipment_segmentation.dataset_converter.dataset_converter import DatasetConverter
+from tower_equipment_segmentation.dvo.known_class_labels import KnownClassLabels
+from tower_equipment_segmentation.dvo.point_cloud_asset_segmentation import PointCloudAssetSegmentation
+from tower_equipment_segmentation.util.dataset_util import get_site_ref_ids_in_dataset_dir, \
+    get_pcd_csv_file_path_for_site_ref_id
+from tower_equipment_segmentation.util.logging_util import setup_logger
 from tqdm import tqdm
+
+from softgroup.data import build_dataloader, build_dataset
+from softgroup.model import SoftGroup
+from softgroup.util import (collect_results_cpu, get_dist_info, init_dist,
+                            is_main_process, load_checkpoint, rle_decode)
 
 logger = setup_logger(__name__)
 
@@ -44,13 +38,13 @@ def convert_to_softgroup(src_dataset_dir: Path, dst_dataset_dir: Path, area_idx:
         area_index=area_idx)
 
 
-def _get_instance_scores_and_preds(instances: List, pcd_size: int):
+def _get_instance_scores_and_preds(instances: List[Dict[str, Any]], pcd_size: int, iou_threshold: float,
+                                   conf_threshold: float) -> Tuple[List[str], List[int], Dict[str, np.ndarray]]:
     class_labels = [KnownClassLabels.antenna, KnownClassLabels.transceiver_junction, KnownClassLabels.head_frame_mount,
                     KnownClassLabels.shelter, KnownClassLabels.background]
 
     def _convert_to_label(id):
         return class_labels[id]
-
 
     keep = []
     masks = [rle_decode(x['pred_mask']) for x in instances]
@@ -64,14 +58,14 @@ def _get_instance_scores_and_preds(instances: List, pcd_size: int):
 
         intersection = [np.sum((masks[i] == 1) & (masks[j] == 1)) for j in order[1:]]
         union = [np.sum((masks[i] == 1) | (masks[j] == 1)) for j in order[1:]]
-        min_area = [min(mask_areas[i], mask_areas[j]) for j in order[1:]]
-        iou = np.array(intersection)/np.array(union)
+        # min_area = [min(mask_areas[i], mask_areas[j]) for j in order[1:]]
+        iou = np.array(intersection) / np.array(union)
 
-        inds = np.where(iou < 0.8)[0]
-        order = order[inds+1]
+        inds = np.where(iou < iou_threshold)[0]
+        order = order[inds + 1]
 
-    instances = [instances[i] for i in keep if instances[i]['conf'] > 0.09]
-    instance_class_labels = np.ones((pcd_size, ), dtype=np.int) * -1
+    instances = [instances[i] for i in keep if instances[i]['conf'] > conf_threshold]
+    instance_class_labels = np.ones((pcd_size,), dtype=int) * -1
     predicted_instance_ids = np.ones((pcd_size,)) * -1
     instance_confs = np.zeros((pcd_size, len(class_labels)))
     class_labels_to_instance_conf_scores = dict()
@@ -88,10 +82,10 @@ def _get_instance_scores_and_preds(instances: List, pcd_size: int):
     predicted_instance_class_labels = list(map(_convert_to_label, instance_class_labels))
     for i, label in enumerate(class_labels):
         class_labels_to_instance_conf_scores[label] = instance_confs[:, i].reshape(-1, )
-    return predicted_instance_class_labels, predicted_instance_ids, class_labels_to_instance_conf_scores
+    return predicted_instance_class_labels, list(predicted_instance_ids), class_labels_to_instance_conf_scores
 
 
-def _get_semantic_scores(semantic_scores: List):
+def _get_semantic_scores(semantic_scores: np.ndarray) -> Dict[str, np.ndarray]:
     class_labels = [KnownClassLabels.background, KnownClassLabels.antenna, KnownClassLabels.transceiver_junction,
                     KnownClassLabels.head_frame_mount, KnownClassLabels.shelter]
     semantic_scores_dict = dict()
@@ -100,7 +94,9 @@ def _get_semantic_scores(semantic_scores: List):
     return semantic_scores_dict
 
 
-def _save_softgroup_logits_and_instances_in_pcd_csv(dataset_dir: Path, result: Dict, overwrite_existing_predictions):
+def _save_softgroup_logits_and_instances_in_pcd_csv(dataset_dir: Path, result: Dict[str, Any],
+                                                    overwrite_existing_predictions: bool, iou_threshold: float,
+                                                    conf_threshold: float):
     site_ref_id = result['site_ref_id']
     predicted_instances = result['pred_instances']
     predicted_semantic_scores = result['semantic_scores']
@@ -110,7 +106,7 @@ def _save_softgroup_logits_and_instances_in_pcd_csv(dataset_dir: Path, result: D
     pcd_size = pcd_asset_seg.num_points
 
     predicted_instance_class_labels, predicted_instance_ids, class_labels_to_instance_conf_scores \
-        = _get_instance_scores_and_preds(predicted_instances, pcd_size)
+        = _get_instance_scores_and_preds(predicted_instances, pcd_size, iou_threshold, conf_threshold)
     semantic_scores = _get_semantic_scores(predicted_semantic_scores)
     if pcd_asset_seg.predicted_instance_class_labels is None or overwrite_existing_predictions:
         pcd_asset_seg.predicted_instance_class_labels = predicted_instance_class_labels
@@ -135,12 +131,14 @@ def _save_softgroup_logits_and_instances_in_pcd_csv(dataset_dir: Path, result: D
     pcd_asset_seg.to_csv_file(src_pcd_csv_fp)
 
 
-def save_softgroup_logits_and_instances_in_pcd_csv(dataset_dir: Path, results: List,
-                                                   overwrite_existing_predictions: bool):
+def save_softgroup_logits_and_instances_in_pcd_csv(dataset_dir: Path, results: List[Dict[str, Any]],
+                                                   overwrite_existing_predictions: bool, iou_threshold: float,
+                                                   conf_thresold: float):
     for res in results:
         scan_id = res['scan_id']
         res.update(dict(site_ref_id=scan_id))
-        _save_softgroup_logits_and_instances_in_pcd_csv(dataset_dir, res, overwrite_existing_predictions)
+        _save_softgroup_logits_and_instances_in_pcd_csv(dataset_dir, res, overwrite_existing_predictions, iou_threshold,
+                                                        conf_thresold)
 
 
 def get_args():
@@ -149,6 +147,8 @@ def get_args():
     parser.add_argument('checkpoint', type=str, help='path to checkpoint')
     parser.add_argument('--dist', action='store_true', help='run with distributed parallel')
     parser.add_argument('--input_dir', type=str, help='input dataset directory in telco format')
+    parser.add_argument('--iou_threshold', type=str, help='iou threshold for nms', default=0.8)
+    parser.add_argument('--conf_threshold', type=str, help='confidence threshold for predictions', default=0.09)
 
     args = parser.parse_args()
     return args
@@ -171,7 +171,6 @@ def main():
     logger.info(f'Converting dataset from telstra format to softgroup format')
 
     temp_dir = './tmp/telstra/converted_data'
-    filename = './tmp/telstra/results/results.csv'
     src_ds_dir = Path(args.input_dir)
     dst_ds_dir = Path(temp_dir)
     area_idx = 'n'
@@ -179,14 +178,8 @@ def main():
                          class_label_to_class_idx_map=label_to_idx_map, area_idx=area_idx)
 
     results = []
-    scan_ids, coords, colors, sem_preds, sem_labels = [], [], [], [], []
-    offset_preds, offset_labels, inst_labels, pred_insts, gt_insts = [], [], [], [], []
-    panoptic_preds = []
-    final_results = []
-
     cfg.data.test.data_root = temp_dir
     cfg.data.test.prefix = ['Area_n']
-    cfg.data.test.with_label = True
     dataset = build_dataset(cfg.data.test, logger)
     dataloader = build_dataloader(dataset, training=False, dist=args.dist, **cfg.dataloader.test)
 
@@ -194,7 +187,6 @@ def main():
     progress_bar_outer = tqdm(total=len(get_site_ref_ids_in_dataset_dir(dst_ds_dir)) * world_size,
                               disable=not is_main_process(), position=0, leave=False)
 
-    eval_tasks = ['semantic', 'instance']
     with torch.no_grad():
         model.eval()
         for i, batch in enumerate(dataloader):
@@ -203,46 +195,8 @@ def main():
             progress_bar_outer.update(world_size)
         progress_bar_outer.close()
         results = collect_results_cpu(results, len(dataset))
-
-    save_softgroup_logits_and_instances_in_pcd_csv(src_ds_dir, results, True)
-
-    if is_main_process():
-        for res in results:
-            scan_ids.append(res['scan_id'])
-            if 'semantic' in eval_tasks or 'panoptic' in eval_tasks:
-                sem_labels.append(res['semantic_labels'])
-                inst_labels.append(res['instance_labels'])
-            if 'semantic' in eval_tasks:
-                coords.append(res['coords_float'])
-                colors.append(res['color_feats'])
-                sem_preds.append(res['semantic_preds'])
-                offset_preds.append(res['offset_preds'])
-                offset_labels.append(res['offset_labels'])
-            if 'instance' in eval_tasks:
-                pred_insts.append(res['pred_instances'])
-                gt_insts.append(res['gt_instances'])
-            if 'panoptic' in eval_tasks:
-                panoptic_preds.append(res['panoptic_preds'])
-
-        if cfg.data.test.with_label:
-            if 'instance' in eval_tasks:
-                logger.info('Evaluate instance segmentation')
-                eval_min_npoint = getattr(cfg, 'eval_min_npoint', None)
-                scannet_eval = ScanNetEval(dataset.CLASSES, eval_min_npoint)
-                scannet_eval.evaluate(pred_insts, gt_insts, filename=filename)
-            if 'panoptic' in eval_tasks:
-                logger.info('Evaluate panoptic segmentation')
-                eval_min_npoint = getattr(cfg, 'eval_min_npoint', None)
-                panoptic_eval = PanopticEval(dataset.THING, dataset.STUFF, min_points=eval_min_npoint)
-                panoptic_eval.evaluate(panoptic_preds, sem_labels, inst_labels)
-            if 'semantic' in eval_tasks:
-                logger.info('Evaluate semantic segmentation and offset MAE')
-                ignore_label = cfg.model.ignore_label
-                evaluate_semantic_miou(sem_preds, sem_labels, ignore_label, logger,
-                                       classes=['background'] + list(dataset.CLASSES),
-                                       filename=filename)
-                evaluate_semantic_acc(sem_preds, sem_labels, ignore_label, logger)
-                evaluate_offset_mae(offset_preds, offset_labels, inst_labels, ignore_label, logger)
+    save_softgroup_logits_and_instances_in_pcd_csv(src_ds_dir, results, True, iou_threshold=args.iou_threshold,
+                                                   conf_thresold=args.conf_threshold)
 
 
 if __name__ == '__main__':
