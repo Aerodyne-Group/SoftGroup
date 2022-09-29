@@ -120,7 +120,7 @@ class CustomDataset(Dataset):
 
         else:
             # Empirically, slightly rotate the scene can match the results from checkpoint
-            theta = 0.35 * math.pi
+            theta = 0
             m = np.matmul(m, [[math.cos(theta), math.sin(theta), 0],
                               [-math.sin(theta), math.cos(theta), 0], [0, 0, 1]])
         if scale and np.random.rand() < prob:
@@ -187,7 +187,7 @@ class CustomDataset(Dataset):
 
     def __getitem__(self, index):
         filename = self.filenames[index]
-        scan_id = osp.basename(filename).replace(self.suffix, '')
+        scan_id = '_'.join(osp.basename(filename).replace(self.suffix, '').split('_')[2:5])
         data = self.load(filename)
         data = self.transform_train(*data) if self.training else self.transform_test(*data)
         if data is None:
