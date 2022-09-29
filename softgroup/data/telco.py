@@ -25,7 +25,16 @@ class TelcoAI(CustomDataset):
 
     def load(self, filename):
         # TODO make file load results consistent
-        xyz, rgb, semantic_label, instance_label, _, _ = torch.load(filename)
+        file_contents = torch.load(filename)
+        if len(file_contents) > 4:
+            self.with_label = True
+            xyz, rgb, semantic_label, instance_label, _, _ = file_contents
+        else:
+            self.with_label = False
+            xyz, rgb, _, _ = file_contents
+            semantic_label = np.zeros(xyz.shape[0], dtype=np.float32)
+            instance_label = np.zeros(xyz.shape[0], dtype=np.float32)
+
         # subsample data
         if self.training:
             N = xyz.shape[0]
