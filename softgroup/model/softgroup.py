@@ -312,6 +312,7 @@ class SoftGroup(nn.Module):
             semantic_labels = self.merge_4_parts(semantic_labels)
             instance_labels = self.merge_4_parts(instance_labels)
             pt_offset_labels = self.merge_4_parts(pt_offset_labels)
+            color_feats = self.merge_4_parts(color_feats)
         semantic_preds = semantic_scores.max(1)[1]
         ret = dict(scan_id=scan_ids[0])
         if 'semantic' in self.test_cfg.eval_tasks or 'panoptic' in self.test_cfg.eval_tasks:
@@ -325,6 +326,7 @@ class SoftGroup(nn.Module):
                     coords_float=coords_float.cpu().numpy(),
                     color_feats=color_feats.cpu().numpy(),
                     semantic_preds=semantic_preds.cpu().numpy(),
+                    semantic_scores=semantic_scores.softmax(1).cpu().numpy(),
                     offset_preds=pt_offsets.cpu().numpy(),
                     offset_labels=pt_offset_labels.cpu().numpy()))
         if not self.semantic_only:
@@ -421,7 +423,7 @@ class SoftGroup(nn.Module):
             coords_ = coords_float[object_idxs]
             pt_offsets_ = pt_offsets[object_idxs]
             idx, start_len = ballquery_batch_p(coords_ + pt_offsets_, batch_idxs_, batch_offsets_,
-                                               radius, mean_active)
+                                               radius[class_id], mean_active)
             proposals_idx, proposals_offset = bfs_cluster(class_numpoint_mean, idx.cpu(),
                                                           start_len.cpu(), npoint_thr, class_id)
             proposals_idx[:, 1] = object_idxs[proposals_idx[:, 1].long()].int()
@@ -467,7 +469,7 @@ class SoftGroup(nn.Module):
         num_points = semantic_scores.size(0)
         cls_scores = cls_scores.softmax(1)
         semantic_pred = semantic_scores.max(1)[1]
-        cls_pred_list, score_pred_list, mask_pred_list = [], [], []
+        cls_pred_list, score_pred_list, mask_pred_list, all_score_pred_list = [], [], [], []
         for i in range(self.instance_classes):
             if i in self.sem2ins_classes:
                 cls_pred = cls_scores.new_tensor([i + 1], dtype=torch.long)
@@ -475,6 +477,8 @@ class SoftGroup(nn.Module):
                 mask_pred = (semantic_pred == i)[None, :].int()
             else:
                 cls_pred = cls_scores.new_full((num_instances, ), i + 1, dtype=torch.long)
+                all_score_pred = cls_scores
+
                 cur_cls_scores = cls_scores[:, i]
                 cur_iou_scores = iou_scores[:, i]
                 cur_mask_scores = mask_scores[:, i]
@@ -490,18 +494,26 @@ class SoftGroup(nn.Module):
                 score_pred = score_pred[inds]
                 mask_pred = mask_pred[inds]
 
+                all_score_pred = all_score_pred[inds]
+
                 # filter too small instances
                 npoint = mask_pred.sum(1)
                 inds = npoint >= self.test_cfg.min_npoint
                 cls_pred = cls_pred[inds]
                 score_pred = score_pred[inds]
                 mask_pred = mask_pred[inds]
+
+                all_score_pred = all_score_pred[inds]
+
             cls_pred_list.append(cls_pred)
             score_pred_list.append(score_pred)
             mask_pred_list.append(mask_pred)
+
+            all_score_pred_list.append(all_score_pred)
         cls_pred = torch.cat(cls_pred_list).cpu().numpy()
         score_pred = torch.cat(score_pred_list).cpu().numpy()
         mask_pred = torch.cat(mask_pred_list).cpu().numpy()
+        all_score_pred = torch.cat(all_score_pred_list).cpu().numpy()
 
         instances = []
         for i in range(cls_pred.shape[0]):
@@ -511,6 +523,7 @@ class SoftGroup(nn.Module):
             pred['conf'] = score_pred[i]
             # rle encode mask to save memory
             pred['pred_mask'] = rle_encode(mask_pred[i])
+            pred['all_score_pred'] = all_score_pred[i]
             instances.append(pred)
         return instances
 
