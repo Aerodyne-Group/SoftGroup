@@ -8,7 +8,7 @@ model:
   ignore_label: -100
   grouping_cfg:
     score_thr: 0.2
-    radius: 0.04
+    radius: [0.04, 0.045, 0.01, 0.04, 0.04]
     mean_active: 300
     class_numpoint_mean: [203076, 13052, 993, 4368, 54758]
     npoint_thr: 0.05  # absolute if class_numpoint == -1, relative if class_numpoint != -1
