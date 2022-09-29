@@ -1,24 +1,23 @@
-
 model:
   channels: 32
   num_blocks: 7
-  semantic_classes: 4
+  semantic_classes: 5
   instance_classes: 4
   sem2ins_classes: []
   semantic_only: False
   ignore_label: -100
   grouping_cfg:
     score_thr: 0.2
-    radius: 0.04
+    radius: [0.04, 0.045, 0.01, 0.04, 0.04]
     mean_active: 300
-    class_numpoint_mean: [52209, 3975, 17472, 219035]
+    class_numpoint_mean: [203076, 3000, 993, 4368, 54758]
     npoint_thr: 0.05  # absolute if class_numpoint == -1, relative if class_numpoint != -1
-    ignore_classes: []
+    ignore_classes: [0]
   instance_voxel_cfg:
     scale: 50
-    spatial_shape: 20
+    spatial_shape: 100
   train_cfg:
-    max_proposal_num: 200
+    max_proposal_num: 100
     pos_iou_thr: 0.5
   test_cfg:
     x4_split: True
@@ -32,44 +31,44 @@ data:
   train:
     downsample_ratio: 0.25
     type: 'telco'
-    data_root: 'dataset/telco/data_qc_ok_poc_downsampled_2cm_aligned_patch_softgrp'
-    prefix: ['Area_0']
+    data_root: '/home/abdulbasit/Desktop/utils/abdul_basit_data/poc_dataset_softgroup_fmt/all_patch_train_val'
+    prefix: ['Area_ftrain']
     suffix: '.pth'
     repeat: 20
     training: True
     voxel_cfg:
       scale: 50
       spatial_shape: [128, 512]
-      max_npoint: 250000
+      max_npoint: 180000
       min_npoint: 5000
   test:
     downsample_ratio: 1.0
     type: 'telco'
-    data_root: 'dataset/telco/data_qc_ok_poc_downsampled_2cm_aligned_patch_softgrp'
-    prefix: ['Area_0']
+    data_root: '/home/abdulbasit/Desktop/utils/abdul_basit_data/poc_dataset_softgroup_fmt/all_patch_train_val'
+    prefix: ['Area_ffval']
     suffix: '.pth'
     training: False
     voxel_cfg:
       scale: 50
       spatial_shape: [128, 512]
-      max_npoint: 250000
+      max_npoint: 180000
       min_npoint: 5000
 
 dataloader:
   train:
-    batch_size: 4
-    num_workers: 4
+    batch_size: 16
+    num_workers: 8
   test:
     batch_size: 1
     num_workers: 1
 
 optimizer:
   type: 'Adam'
-  lr: 0.004
+  lr: 0.012
 
 fp16: False
-epochs: 20
+epochs: 30
 step_epoch: 0
 save_freq: 2
-pretrain: 'work_dirs/softgroup_telco-ai_backbone_fold5/latest.pth'
+pretrain: 'work_dirs/softgroup_telco_backbone_fold5/latest.pth'
 work_dir: ''
