@@ -134,11 +134,16 @@ def _save_softgroup_logits_and_instances_in_pcd_csv(dataset_dir: Path, result: D
 def save_softgroup_logits_and_instances_in_pcd_csv(dataset_dir: Path, results: List[Dict[str, Any]],
                                                    overwrite_existing_predictions: bool, iou_threshold: float,
                                                    conf_thresold: float):
+    progress_bar_outer = tqdm(total=len(results) * 1,
+                              disable=not is_main_process(), position=0, leave=False)
+
     for res in results:
         scan_id = res['scan_id']
         res.update(dict(site_ref_id=scan_id))
         _save_softgroup_logits_and_instances_in_pcd_csv(dataset_dir, res, overwrite_existing_predictions, iou_threshold,
                                                         conf_thresold)
+        progress_bar_outer.update(1)
+    progress_bar_outer.close()
 
 
 def get_args():
