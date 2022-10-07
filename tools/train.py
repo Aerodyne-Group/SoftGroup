@@ -99,7 +99,7 @@ def validate(epoch, model, val_loader, cfg, logger, writer):
             results.append(result)
             progress_bar.update(world_size)
         progress_bar.close()
-        results = collect_results_cpu(results, len(val_set))
+        #results = collect_results_cpu(results, len(val_set))
     if is_main_process():
         for res in results:
             if 'semantic' in eval_tasks or 'panoptic' in eval_tasks:
@@ -128,9 +128,9 @@ def validate(epoch, model, val_loader, cfg, logger, writer):
             logger.info('Evaluate panoptic segmentation')
             eval_min_npoint = getattr(cfg, 'eval_min_npoint', None)
             panoptic_eval = PanopticEval(val_set.THING, val_set.STUFF, min_points=eval_min_npoint)
-            eval_res = panoptic_eval.evaluate(all_panoptic_preds, all_sem_labels, all_inst_labels)
-            writer.add_scalar('val/PQ', eval_res[0], epoch)
-            logger.info('PQ: {:.1f}'.format(eval_res[0]))
+            eval_resp = panoptic_eval.evaluate(all_panoptic_preds, all_sem_labels, all_inst_labels)
+            writer.add_scalar('val/PQ', eval_resp[0], epoch)
+            logger.info('PQ: {:.1f}'.format(eval_resp[0]))
         if 'semantic' in eval_tasks:
             logger.info('Evaluate semantic segmentation and offset MAE')
             miou = evaluate_semantic_miou(all_sem_preds, all_sem_labels, cfg.model.ignore_label,
@@ -142,6 +142,8 @@ def validate(epoch, model, val_loader, cfg, logger, writer):
             writer.add_scalar('val/mIoU', miou, epoch)
             writer.add_scalar('val/Acc', acc, epoch)
             writer.add_scalar('val/Offset MAE', mae, epoch)
+
+        return [eval_res, miou, acc, mae]
 
 
 def main():
@@ -194,11 +196,15 @@ def main():
         load_checkpoint(cfg.pretrain, logger, model)
 
     # train and val
+    valbest = -1
     logger.info('Training')
     for epoch in range(start_epoch, cfg.epochs + 1):
         train(epoch, model, optimizer, scaler, train_loader, cfg, logger, writer)
-        if not args.skip_validate and (is_multiple(epoch, cfg.save_freq) or is_power2(epoch)):
-            validate(epoch, model, val_loader, cfg, logger, writer)
+        results = validate(epoch, model, val_loader, cfg, logger, writer)
+        if results[0]['all_ap'] > valbest:
+            valbest = results[0]['all_ap']
+            checkpoint_save('best_val', model, optimizer, cfg.work_dir, cfg.save_freq)
+            logger.info(f'best validation acheived in epoch: {epoch} with map: {valbest}')
         writer.flush()
 
 

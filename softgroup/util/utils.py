@@ -95,16 +95,21 @@ def checkpoint_save(epoch, model, optimizer, work_dir, save_freq=16):
         'optimizer': optimizer.state_dict(),
         'epoch': epoch
     }
-    torch.save(checkpoint, f)
-    if os.path.exists(f'{work_dir}/latest.pth'):
-        os.remove(f'{work_dir}/latest.pth')
-    os.system(f'cd {work_dir}; ln -s {osp.basename(f)} latest.pth')
 
-    # remove previous checkpoints unless they are a power of 2 or a multiple of save_freq
-    epoch = epoch - 1
-    f = os.path.join(work_dir, f'epoch_{epoch}.pth')
-    if os.path.isfile(f):
-        if not is_multiple(epoch, save_freq) and not is_power2(epoch):
+    if type(epoch) == str: # replace best models
+        if os.path.exists(f'{work_dir}/epoch_{epoch}.pth'):
+            os.remove(f'{work_dir}/epoch_{epoch}.pth')
+    torch.save(checkpoint, f)
+
+    if type(epoch) == int: # replace latest models
+        if os.path.exists(f'{work_dir}/latest.pth'):
+            os.remove(f'{work_dir}/latest.pth')
+        os.system(f'cd {work_dir}; ln -s {osp.basename(f)} latest.pth')
+
+        # remove previous checkpoints unless they are a power of 2 or a multiple of save_freq
+        epoch = epoch - 1
+        f = os.path.join(work_dir, f'epoch_{epoch}.pth')
+        if os.path.isfile(f):
             os.remove(f)
 
 
@@ -142,7 +147,7 @@ def load_checkpoint(checkpoint, logger, model, optimizer=None, strict=False):
         epoch = state_dict['epoch']
     else:
         epoch = 0
-    return epoch + 1
+    return epoch
 
 
 def get_max_memory():
