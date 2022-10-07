@@ -45,44 +45,36 @@ def _get_instance_scores_and_preds(instances: List[Dict[str, Any]], pcd_size: in
 
     def _convert_to_label(id):
         return class_labels[id]
-
     keep = []
     masks = [rle_decode(x['pred_mask']) for x in instances]
     confs = np.array([x['conf'] for x in instances])
-    mask_areas = np.array([m.sum() for m in masks])
-
+    # mask_areas = np.array([m.sum() for m in masks])
     order = np.argsort(confs)[::-1]
     while order.size > 0:
         i = order.item(0)
         keep.append(i)
-
         intersection = [np.sum((masks[i] == 1) & (masks[j] == 1)) for j in order[1:]]
         union = [np.sum((masks[i] == 1) | (masks[j] == 1)) for j in order[1:]]
         # min_area = [min(mask_areas[i], mask_areas[j]) for j in order[1:]]
         iou = np.array(intersection) / np.array(union)
-
         inds = np.where(iou < iou_threshold)[0]
         order = order[inds + 1]
 
     instances = [instances[i] for i in keep if instances[i]['conf'] > conf_threshold]
-    instance_class_labels = np.ones((pcd_size,), dtype=int) * -1
     predicted_instance_ids = np.ones((pcd_size,)) * -1
     instance_confs = np.zeros((pcd_size, len(class_labels)))
     class_labels_to_instance_conf_scores = dict()
 
     instances = sorted(instances, key=lambda x: x['conf'])
     for i, inst in enumerate(instances):
-        label_id = inst['label_id']
         logits = inst['all_score_pred']
         mask = rle_decode(inst['pred_mask'])
-
-        instance_class_labels[mask == 1] = (label_id - 1)
         predicted_instance_ids[mask == 1] = i
         instance_confs[mask == 1, :] = logits
-    predicted_instance_class_labels = list(map(_convert_to_label, instance_class_labels))
     for i, label in enumerate(class_labels):
         class_labels_to_instance_conf_scores[label] = instance_confs[:, i].reshape(-1, )
-    return predicted_instance_class_labels, list(predicted_instance_ids), class_labels_to_instance_conf_scores
+    class_labels_to_instance_conf_scores['background'][predicted_instance_ids == -1] = 1.0
+    return list(predicted_instance_ids), class_labels_to_instance_conf_scores
 
 
 def _get_semantic_scores(semantic_scores: np.ndarray) -> Dict[str, np.ndarray]:
@@ -105,13 +97,9 @@ def _save_softgroup_logits_and_instances_in_pcd_csv(dataset_dir: Path, result: D
     pcd_asset_seg = PointCloudAssetSegmentation.from_csv_file(src_pcd_csv_fp)
     pcd_size = pcd_asset_seg.num_points
 
-    predicted_instance_class_labels, predicted_instance_ids, class_labels_to_instance_conf_scores \
+    predicted_instance_ids, class_labels_to_instance_conf_scores \
         = _get_instance_scores_and_preds(predicted_instances, pcd_size, iou_threshold, conf_threshold)
     semantic_scores = _get_semantic_scores(predicted_semantic_scores)
-    if pcd_asset_seg.predicted_instance_class_labels is None or overwrite_existing_predictions:
-        pcd_asset_seg.predicted_instance_class_labels = predicted_instance_class_labels
-    else:
-        pcd_asset_seg.predicted_instance_class_labels.update(predicted_instance_class_labels)
 
     if pcd_asset_seg.class_labels_to_instance_conf_scores is None or overwrite_existing_predictions:
         pcd_asset_seg.class_labels_to_instance_conf_scores = class_labels_to_instance_conf_scores
